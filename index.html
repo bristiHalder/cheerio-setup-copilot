@@ -1,0 +1,508 @@
+<meta charset="utf-8">
+<title>Cheerio Setup Copilot</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Onest:wght@500;600;700&family=Fragment+Mono&display=swap">
+<style>
+/* Layout: story rail on the left, a mock of the Cheerio dashboard on the right with the copilot as a side drawer. Palette taken from cheerioai.com: plum and violet on warm stone, burnt orange used sparingly. */
+:root{
+  --bg:#f3f1ef; --fg:#1e1922; --muted:#6e6573; --line:#e6e1dd; --line2:#d9d2cc; --panel:#ffffff; --panel2:#f8f6f4; --stone:#f1eeeb;
+  --accent:#4b3387; --accent-hover:#3d2970; --accent-fg:#ffffff; --accent-soft:#efe9fa; --accent-line:#cdbff0; --accent-ink:#4b3387;
+  --nav:#241a2c; --nav-fg:#f3eef6; --nav-muted:#b7a9c2;
+  --flame:#bd4e22; --flame-soft:#fbeee7;
+  --ok:#2c7a4b; --ok-soft:#e5f3ea; --warn:#9a5b00; --warn-soft:#fbf0dc; --bad:#b4382c; --bad-soft:#fbe7e4; --info:#3f5fb0; --info-soft:#e8edf9;
+  --user-bg:#4b3387; --user-fg:#ffffff;
+  --shadow:0 1px 2px rgba(36,26,44,.06),0 12px 32px -12px rgba(36,26,44,.18);
+  --font:"DM Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --display:"Onest","DM Sans",system-ui,sans-serif;
+  --mono:"Fragment Mono",ui-monospace,Menlo,Consolas,monospace;
+  color-scheme:light;
+}
+
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font-family:var(--font);font-size:14px;line-height:1.5;padding-inline:20px;padding-block:20px;-webkit-font-smoothing:antialiased}
+h1,h2,h3{margin:0;text-wrap:balance;line-height:1.2;font-family:var(--display);font-weight:600;letter-spacing:-.01em}
+p{margin:0}
+code{font-family:var(--mono);font-size:.92em;background:var(--stone);padding:1px 5px;border-radius:5px}
+button{font:inherit;cursor:pointer}
+.app{max-width:1280px;margin:0 auto;display:grid;grid-template-columns:270px minmax(0,1fr);gap:20px}
+@media (max-width:880px){.app{grid-template-columns:1fr}}
+
+/* story rail */
+.rail{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:20px 16px;display:flex;flex-direction:column;gap:16px;align-self:start;position:sticky;top:calc(env(safe-area-inset-top,0px) + 20px)}
+@media (max-width:880px){.rail{position:static}}
+.eyebrow{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--flame);font-weight:600}
+.rail h1{font-size:21px;margin-top:4px}
+.rail p{color:var(--muted);font-size:13px;margin-top:6px}
+.steps{display:flex;flex-direction:column;gap:2px;margin:0;padding:0;list-style:none}
+.steps button{width:100%;text-align:left;background:transparent;border:0;border-radius:10px;padding:9px 10px;color:var(--fg);display:grid;grid-template-columns:26px 1fr;gap:10px;align-items:start;transition:background .15s}
+.steps button:hover{background:var(--panel2)}
+.steps button[aria-current="true"]{background:var(--accent-soft)}
+.steps .n{width:24px;height:24px;border-radius:50%;display:grid;place-items:center;font-family:var(--mono);font-size:10.5px;color:var(--muted);border:1px solid var(--line2);background:var(--panel)}
+.steps button[aria-current="true"] .n{background:var(--accent);border-color:var(--accent);color:var(--accent-fg)}
+.steps .t{font-weight:600;font-size:13.5px;line-height:1.3;padding-top:2px}
+.steps .s{display:block;font-size:12px;color:var(--muted);font-weight:400;margin-top:2px}
+.steps .edge .t::after{content:"Edge case";display:table;font-size:10px;font-weight:600;letter-spacing:.04em;color:var(--flame);background:var(--flame-soft);border-radius:999px;padding:1px 8px;margin-top:5px}
+.legend{font-size:12px;color:var(--muted);border-top:1px solid var(--line);padding-top:12px}
+kbd{font-family:var(--mono);font-size:11px;border:1px solid var(--line2);border-bottom-width:2px;border-radius:5px;padding:0 5px;background:var(--panel2)}
+
+/* stage */
+.stage{min-width:0;display:flex;flex-direction:column;gap:12px}
+.stagebar{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+.stagebar .where{font-size:13px;color:var(--muted);font-weight:500}
+.stagebar .nav{display:flex;gap:8px}
+.btn{border:1px solid var(--line2);background:var(--panel);color:var(--fg);border-radius:9px;padding:8px 14px;font-weight:600;font-size:13px;line-height:1.2;transition:background .15s,border-color .15s}
+.btn:hover{background:var(--panel2);border-color:var(--muted)}
+.btn:disabled{opacity:.45;cursor:default}
+.btn:focus-visible,.steps button:focus-visible,.compose input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.btn.primary{background:var(--accent);color:var(--accent-fg);border-color:var(--accent)}
+.btn.primary:hover{background:var(--accent-hover);border-color:var(--accent-hover)}
+.btn.ghost{background:transparent;border-color:transparent;color:var(--muted)}
+.btn.ghost:hover{background:var(--panel2);color:var(--fg)}
+.btn.sm{padding:6px 11px;font-size:12.5px}
+
+.screen{display:none}
+.screen.active{display:block}
+.frame{background:var(--panel);border:1px solid var(--line);border-radius:16px;overflow:hidden;box-shadow:var(--shadow)}
+.topnav{background:var(--nav);color:var(--nav-fg);display:flex;align-items:center;gap:16px;padding:12px 18px;font-size:13px}
+.topnav .brand{font-family:var(--display);font-weight:700;font-size:16px;letter-spacing:-.02em;display:flex;align-items:center;gap:8px}
+.topnav .brand::before{content:"";width:18px;height:18px;border-radius:6px;background:var(--flame);box-shadow:inset -5px -5px 0 rgba(0,0,0,.18)}
+.topnav .links{display:flex;gap:2px;min-width:0;overflow:hidden}
+@media (max-width:720px){.topnav .links{display:none}}
+.topnav .links span{color:var(--nav-muted);padding:5px 9px;border-radius:7px;white-space:nowrap}
+.topnav .links span[aria-current]{color:var(--nav-fg);background:rgba(255,255,255,.1);font-weight:600}
+.topnav .me{margin-left:auto;display:flex;align-items:center;gap:10px;white-space:nowrap;color:var(--nav-fg);flex:none}
+.plan{font-size:11px;font-weight:600;padding:3px 9px;border-radius:999px;background:rgba(255,255,255,.12);color:var(--nav-fg)}
+.body{display:grid;grid-template-columns:minmax(0,1fr) 420px;min-height:540px}
+.body.wide{grid-template-columns:1fr}
+@media (max-width:1060px){.body{grid-template-columns:1fr}}
+.main{padding:22px 24px;min-width:0;display:flex;flex-direction:column;gap:16px;background:var(--panel)}
+.main h2{font-size:20px}
+.sub{color:var(--muted);font-size:13px}
+
+/* table */
+.tblwrap{overflow-x:auto;border:1px solid var(--line);border-radius:12px}
+.tbl{width:100%;border-collapse:collapse;font-size:13px}
+.tbl th{text-align:left;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:600;padding:10px 14px;background:var(--panel2);border-bottom:1px solid var(--line)}
+.tbl td{padding:12px 14px;border-bottom:1px solid var(--line);vertical-align:middle}
+.tbl tr:last-child td{border-bottom:0}
+.tbl tr.hot td{background:var(--bad-soft)}
+.tbl .name{font-family:var(--mono);font-size:12px}
+.name{font-family:var(--mono);font-size:12px}
+.pill{display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:999px;font-size:12px;font-weight:600;white-space:nowrap;line-height:1.3}
+.pill::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}
+.pill.ok{background:var(--ok-soft);color:var(--ok)}
+.pill.warn{background:var(--warn-soft);color:var(--warn)}
+.pill.bad{background:var(--bad-soft);color:var(--bad)}
+.pill.info{background:var(--info-soft);color:var(--info)}
+.pill.neutral{background:var(--stone);color:var(--muted)}
+
+/* copilot mark */
+.ico{width:32px;height:32px;border-radius:10px;background:var(--accent);color:var(--accent-fg);display:grid;place-items:center;flex:none}
+.ico svg{width:17px;height:17px}
+
+/* nudge */
+.nudge{display:flex;gap:14px;align-items:flex-start;background:var(--accent-soft);border:1px solid var(--accent-line);border-radius:14px;padding:14px 16px}
+.nudge .ico{width:38px;height:38px;border-radius:11px}
+.nudge .txt{flex:1;min-width:0}
+.nudge strong{display:block;font-family:var(--display);font-weight:600;font-size:14.5px;margin-bottom:2px}
+.nudge .acts{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+
+/* drawer */
+.drawer{border-left:1px solid var(--line);background:var(--panel2);display:flex;flex-direction:column;min-width:0}
+@media (max-width:1060px){.drawer{border-left:0;border-top:1px solid var(--line)}}
+.dhead{display:flex;align-items:center;gap:11px;padding:14px 16px;border-bottom:1px solid var(--line);background:var(--panel)}
+.dhead .ttl{font-family:var(--display);font-weight:600;font-size:15px}
+.dhead .st{font-size:11.5px;color:var(--muted);display:flex;align-items:center;gap:6px}
+.dhead .st::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--ok)}
+.dhead .x{margin-left:auto;color:var(--muted);background:none;border:0;font-size:18px;width:30px;height:30px;border-radius:8px}
+.dhead .x:hover{background:var(--panel2)}
+.snapshot{display:flex;gap:6px;flex-wrap:wrap;padding:10px 16px;border-bottom:1px solid var(--line);background:var(--panel)}
+.snapshot .pill{font-size:11px;padding:2px 9px}
+.chat{padding:16px;display:flex;flex-direction:column;gap:12px;flex:1}
+.msg{max-width:100%;border-radius:14px;padding:11px 13px;font-size:13.5px}
+.msg.ai{background:var(--panel);border:1px solid var(--line);border-top-left-radius:4px}
+.msg.user{background:var(--user-bg);color:var(--user-fg);border-top-right-radius:4px;align-self:flex-end;max-width:85%}
+.msg.user .who{color:var(--user-fg);opacity:.75}
+.msg.sys{background:transparent;border:1px dashed var(--line2);color:var(--muted);font-size:11.5px;text-align:center;font-family:var(--mono);padding:8px 10px}
+.msg p + p{margin-top:7px}
+.msg ol,.msg ul{margin:7px 0 0 18px;padding:0}
+.msg li{margin:5px 0}
+.msg li strong{font-weight:600}
+.who{font-size:11px;color:var(--accent-ink);margin-bottom:5px;font-weight:600;letter-spacing:.02em}
+.fix{margin-top:10px;border:1px solid var(--line);border-radius:11px;overflow:hidden;background:var(--panel)}
+.fix .fh{padding:8px 11px;font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:600;background:var(--panel2);border-bottom:1px solid var(--line);display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.fix .fb{padding:11px}
+.tpl{font-family:var(--mono);font-size:12px;line-height:1.6;white-space:pre-wrap;word-break:break-word}
+.card .tpl{background:var(--stone);border-radius:9px;padding:11px 12px}
+.del{background:var(--bad-soft);color:var(--bad);text-decoration:line-through;padding:0 2px;border-radius:3px}
+.ins{background:var(--ok-soft);color:var(--ok);padding:0 2px;border-radius:3px}
+.acts{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.cost{display:grid;grid-template-columns:1fr auto;gap:5px 12px;font-size:12.5px;margin-top:10px;padding:10px 11px;background:var(--panel2);border-radius:10px;font-variant-numeric:tabular-nums}
+.cost .k{color:var(--muted)}
+.cost .v{text-align:right;font-family:var(--mono);font-size:12px}
+.cost .v.bad{color:var(--bad);font-weight:600}
+.fix .cost{background:transparent;padding:6px 0 0;margin-top:6px}
+.compose{display:flex;gap:8px;padding:12px 16px;border-top:1px solid var(--line);background:var(--panel)}
+.compose input{flex:1;min-width:0;border:1px solid var(--line2);border-radius:10px;padding:9px 12px;background:var(--panel2);color:var(--fg);font:inherit}
+.compose input:disabled{opacity:.55}
+.meta{font-size:11px;color:var(--muted);display:flex;justify-content:space-between;gap:8px;padding:0 16px 12px;background:var(--panel);flex-wrap:wrap}
+
+/* ticket */
+.ticket{border:1px solid var(--line);border-radius:11px;overflow:hidden;background:var(--panel);margin-top:10px}
+.ticket .th{padding:9px 12px;background:var(--info-soft);color:var(--info);font-weight:600;font-size:12px;display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.ticket dl{display:grid;grid-template-columns:96px 1fr;gap:6px 12px;padding:12px;margin:0;font-size:12.5px}
+.ticket dt{color:var(--muted)}
+.ticket dd{margin:0;min-width:0}
+
+/* cards */
+.card{border:1px solid var(--line);border-radius:14px;padding:14px 16px;background:var(--panel)}
+.card h3{font-size:14.5px;margin-bottom:8px}
+.card.ok{border-color:transparent;background:var(--ok-soft)}
+.card.warn{border-color:transparent;background:var(--flame-soft)}
+.card.warn h3{color:var(--flame)}
+.card.bad{border-color:transparent;background:var(--bad-soft)}
+.card.bad h3{color:var(--bad)}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px}
+.steps-list{margin:4px 0 0 18px;padding:0;font-size:13px}
+.steps-list li{margin:5px 0}
+
+/* agent inbox */
+.inbox{display:grid;grid-template-columns:290px minmax(0,1fr);min-height:540px}
+@media (max-width:880px){.inbox{grid-template-columns:1fr}}
+.qlist{border-right:1px solid var(--line);padding:12px;display:flex;flex-direction:column;gap:8px;background:var(--panel2)}
+.q{border:1px solid var(--line);border-radius:11px;padding:10px 12px;font-size:12.5px;background:var(--panel)}
+.q.sel{border-color:var(--accent-line);background:var(--accent-soft)}
+.q .qn{font-weight:600;display:flex;justify-content:space-between;align-items:center;gap:6px}
+.q .qs{color:var(--muted);margin-top:3px}
+.tview{padding:22px 24px;display:flex;flex-direction:column;gap:14px;min-width:0}
+.tview h2{font-size:19px}
+.ai-attach{border:1px solid var(--accent-line);border-radius:14px;overflow:hidden}
+.ai-attach .ah{background:var(--accent-soft);padding:10px 14px;font-weight:600;font-size:12.5px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.ai-attach .ab{padding:14px;font-size:13px;display:flex;flex-direction:column;gap:10px}
+.ai-attach .ab strong{font-family:var(--display);font-weight:600}
+.reply{border:1px solid var(--line);border-radius:12px;padding:12px 14px;font-size:13.5px;background:var(--panel2)}
+.reply .rh{font-size:10.5px;color:var(--muted);margin-bottom:6px;font-weight:600;letter-spacing:.08em;text-transform:uppercase}
+
+/* about */
+.about{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:18px 20px;display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:18px;font-size:13px}
+.about h3{font-size:13.5px;margin-bottom:8px}
+.about ul{margin:0 0 0 16px;padding:0}
+.about li{margin:4px 0}
+.about .muted{color:var(--muted)}
+@media (prefers-reduced-motion:no-preference){.screen.active{animation:in .2s ease-out}}
+@keyframes in{from{opacity:.5;transform:translateY(4px)}to{opacity:1;transform:none}}
+</style>
+
+<div class="app">
+  <aside class="rail">
+    <div>
+      <div class="eyebrow">Clickable prototype</div>
+      <h1>Cheerio Setup Copilot</h1>
+      <p>Scenario: Priya at Glow Botanicals (Growth plan) has a rejected WhatsApp template two days before her Diwali campaign.</p>
+    </div>
+    <ol class="steps" id="steps">
+      <li><button data-go="1" aria-current="true"><span class="n">01</span><span class="t">Templates page<span class="s">Rejection surfaces, copilot nudges</span></span></button></li>
+      <li><button data-go="2"><span class="n">02</span><span class="t">Diagnosis and rewrite<span class="s">Three problems, cost impact, one-click fix</span></span></button></li>
+      <li><button data-go="3"><span class="n">03</span><span class="t">Resubmitted<span class="s">What happens next, why it happened</span></span></button></li>
+      <li class="edge"><button data-go="4"><span class="n">04</span><span class="t">Rejected again<span class="s">Escalation with full context</span></span></button></li>
+      <li class="edge"><button data-go="5"><span class="n">05</span><span class="t">User asks for a human<span class="s">Frustration detected, instant handoff</span></span></button></li>
+      <li class="edge"><button data-go="6"><span class="n">06</span><span class="t">Meta data unavailable<span class="s">Graceful fallback</span></span></button></li>
+      <li class="edge"><button data-go="7"><span class="n">07</span><span class="t">Startup plan cap reached<span class="s">Fair-use limit and add-on</span></span></button></li>
+      <li><button data-go="8"><span class="n">08</span><span class="t">Support agent view<span class="s">Ticket arrives pre-diagnosed</span></span></button></li>
+    </ol>
+    <div class="legend">Click the buttons inside the mock to follow the story, or use <kbd>←</kbd> <kbd>→</kbd>. All names and numbers are sample data.</div>
+  </aside>
+
+  <section class="stage">
+    <div class="stagebar">
+      <div class="where" id="where">Screen 1 of 8</div>
+      <div class="nav"><button class="btn sm" id="prev">← Back</button><button class="btn sm primary" id="next">Next →</button></div>
+    </div>
+
+    <!-- 1 Templates page -->
+    <div class="screen active" data-screen="1">
+      <div class="frame">
+        <div class="topnav"><span class="brand">cheerio</span><span class="links"><span>Inbox</span><span>Campaigns</span><span aria-current="true">Templates</span><span>Workflows</span><span>Contacts</span><span>Integrations</span></span><span class="me"><span class="plan">Growth</span>Priya · Glow Botanicals</span></div>
+        <div class="body wide">
+          <div class="main">
+            <div class="nudge">
+              <div class="ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5l1.9 5.6 5.6 1.9-5.6 1.9L12 17.5l-1.9-5.6L4.5 10l5.6-1.9z" fill="currentColor"/><path d="M18.5 14.5l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8z" fill="currentColor"/></svg></div>
+              <div class="txt"><strong>Your template “diwali_offer_utility” was rejected by Meta 14 minutes ago.</strong>I found three fixable problems. Want me to rewrite it so it passes, and resubmit?
+                <div class="acts"><button class="btn primary sm" data-go="2">Fix it with Copilot</button><button class="btn sm" data-go="2">Show me what is wrong</button><button class="btn ghost sm">Dismiss</button></div>
+              </div>
+            </div>
+            <div><h2>WhatsApp templates</h2><p class="sub">Templates must be approved by Meta before you can send them outside a 24-hour conversation.</p></div>
+            <div class="tblwrap"><table class="tbl">
+              <thead><tr><th>Name</th><th>Category</th><th>Language</th><th>Status</th><th>Quality</th><th>Updated</th></tr></thead>
+              <tbody>
+                <tr class="hot"><td class="name">diwali_offer_utility</td><td>Utility</td><td>en</td><td><span class="pill bad">Rejected</span></td><td><span class="pill neutral">—</span></td><td>Today, 11:42</td></tr>
+                <tr><td class="name">order_shipped_v2</td><td>Utility</td><td>en</td><td><span class="pill ok">Approved</span></td><td><span class="pill ok">High</span></td><td>3 Oct</td></tr>
+                <tr><td class="name">cod_confirmation</td><td>Utility</td><td>en, hi</td><td><span class="pill ok">Approved</span></td><td><span class="pill ok">High</span></td><td>28 Sep</td></tr>
+                <tr><td class="name">cart_reminder_1</td><td>Marketing</td><td>en</td><td><span class="pill ok">Approved</span></td><td><span class="pill warn">Medium</span></td><td>21 Sep</td></tr>
+                <tr><td class="name">otp_login</td><td>Authentication</td><td>en</td><td><span class="pill ok">Approved</span></td><td><span class="pill ok">High</span></td><td>2 Sep</td></tr>
+              </tbody>
+            </table></div>
+            <p class="sub">Meta's reason, as returned by the API: <code style="font-family:var(--mono);font-size:12px">INVALID_FORMAT · TAG_CONTENT_MISMATCH</code>. Without the copilot, this is the point where Priya raises a ticket.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 2 Diagnosis -->
+    <div class="screen" data-screen="2">
+      <div class="frame">
+        <div class="topnav"><span class="brand">cheerio</span><span class="links"><span>Inbox</span><span>Campaigns</span><span aria-current="true">Templates</span><span>Workflows</span><span>Contacts</span><span>Integrations</span></span><span class="me"><span class="plan">Growth</span>Priya · Glow Botanicals</span></div>
+        <div class="body">
+          <div class="main">
+            <div><h2>diwali_offer_utility</h2><p class="sub">Utility · English · <span class="pill bad">Rejected</span></p></div>
+            <div class="card"><h3>Submitted body</h3><div class="tpl">{{1}}, your order is on its way! 🎉 Use code DIWALI20 for 20% off your next order. Track here: bit.ly/glow-track</div></div>
+            <div class="card"><h3>Samples you gave</h3><div class="tpl">{{1}} = xxx</div></div>
+            <p class="sub">The copilot reads this template, Meta's rejection reason and your account state. It never changes anything without the confirm click on the right.</p>
+          </div>
+          <aside class="drawer">
+            <div class="dhead"><div class="ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5l1.9 5.6 5.6 1.9-5.6 1.9L12 17.5l-1.9-5.6L4.5 10l5.6-1.9z" fill="currentColor"/><path d="M18.5 14.5l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8z" fill="currentColor"/></svg></div><div><div class="ttl">Setup Copilot</div><div class="st">Reading your WhatsApp account · just now</div></div><button class="x" aria-label="Close">×</button></div>
+            <div class="snapshot"><span class="pill ok">WhatsApp connected</span><span class="pill ok">Display name approved</span><span class="pill ok">Quality: High</span><span class="pill info">Tier: 10k msgs/day</span><span class="pill bad">1 template rejected</span></div>
+            <div class="chat">
+              <div class="msg ai"><div class="who">Copilot</div>
+                <p>Meta rejected <strong>diwali_offer_utility</strong> for three reasons. Two are formatting, one is about money.</p>
+                <ol>
+                  <li><strong>Promotional text in a Utility template.</strong> “Use code DIWALI20 for 20% off” is marketing. Meta only allows order updates in Utility, so it flagged a category mismatch.</li>
+                  <li><strong>It starts with a variable.</strong> Templates can't begin or end with <code>{{1}}</code>; there must be fixed text around it.</li>
+                  <li><strong>Shortened link.</strong> bit.ly links are treated as suspicious. Use your own domain.</li>
+                </ol>
+                <p>Also, the sample value “xxx” gives the reviewer nothing to check. I'll fill real-looking samples.</p>
+              </div>
+              <div class="msg ai"><div class="who">Copilot · suggested fix</div>
+                <p>Split it into two templates so the shipping update stays cheap and the offer is allowed:</p>
+                <div class="fix"><div class="fh"><span>A · order_on_the_way (Utility)</span><span>₹0.115 / msg</span></div><div class="fb"><div class="tpl"><span class="ins">Hi </span>{{1}}, your <span class="ins">Glow Botanicals order {{2}}</span> is on its way<span class="del">! 🎉 Use code DIWALI20 for 20% off your next order</span>. Track it here: <span class="del">bit.ly/glow-track</span><span class="ins">https://glowbotanicals.in/track/{{2}}</span></div><div class="cost"><span class="k">Samples</span><span class="v">Priya · GB-10422</span></div></div></div>
+                <div class="fix"><div class="fh"><span>B · diwali_offer (Marketing)</span><span>₹0.8631 / msg</span></div><div class="fb"><div class="tpl">Hi {{1}}, Diwali glow starts now. Use code DIWALI20 for 20% off until 20 Oct: https://glowbotanicals.in/diwali
+Reply STOP to opt out.</div></div></div>
+                <div class="cost"><span class="k">Your Diwali list</span><span class="v">2,400 contacts</span><span class="k">Cost if sent as Marketing</span><span class="v">₹2,071</span><span class="k">Cost if it had passed as Utility</span><span class="v">₹276</span><span class="k">Keeping the offer in a Utility template</span><span class="v bad">not allowed</span></div>
+                <div class="acts"><button class="btn primary sm" data-go="3">Submit both to Meta</button><button class="btn sm" data-go="3">Submit only A</button><button class="btn ghost sm">Edit myself</button><button class="btn ghost sm" data-go="5">Talk to a human</button></div>
+              </div>
+            </div>
+            <div class="compose"><input id="c2" type="text" placeholder="Ask anything about this template…" aria-label="Message"><button class="btn sm">Send</button></div>
+            <div class="meta"><span>Reads: templates, account status, send logs</span><span>Session 3 of unlimited</span></div>
+          </aside>
+        </div>
+      </div>
+    </div>
+
+    <!-- 3 Resubmitted -->
+    <div class="screen" data-screen="3">
+      <div class="frame">
+        <div class="topnav"><span class="brand">cheerio</span><span class="links"><span>Inbox</span><span>Campaigns</span><span aria-current="true">Templates</span><span>Workflows</span><span>Contacts</span><span>Integrations</span></span><span class="me"><span class="plan">Growth</span>Priya · Glow Botanicals</span></div>
+        <div class="body">
+          <div class="main">
+            <div><h2>WhatsApp templates</h2><p class="sub">Two templates submitted to Meta at 11:58.</p></div>
+            <div class="tblwrap"><table class="tbl">
+              <thead><tr><th>Name</th><th>Category</th><th>Status</th><th>Updated</th></tr></thead>
+              <tbody>
+                <tr><td class="name">order_on_the_way</td><td>Utility</td><td><span class="pill info">In review</span></td><td>Today, 11:58</td></tr>
+                <tr><td class="name">diwali_offer</td><td>Marketing</td><td><span class="pill info">In review</span></td><td>Today, 11:58</td></tr>
+                <tr><td class="name">diwali_offer_utility</td><td>Utility</td><td><span class="pill neutral">Archived</span></td><td>Today, 11:58</td></tr>
+              </tbody>
+            </table></div>
+            <div class="grid2">
+              <div class="card"><h3>What happens next</h3><ol class="steps-list"><li>Meta usually decides within minutes; it can take up to 24 hours.</li><li>You'll get a WhatsApp message from Cheerio when each one is approved.</li><li>Your Diwali campaign is saved as a draft pointing at <span class="name">diwali_offer</span>.</li></ol></div>
+              <div class="card"><h3>So it doesn't happen again</h3><ul class="steps-list"><li>Offers, discounts and “buy now” go in Marketing templates only.</li><li>Start and end every template with fixed words.</li><li>Use links on your own domain.</li></ul></div>
+            </div>
+          </div>
+          <aside class="drawer">
+            <div class="dhead"><div class="ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5l1.9 5.6 5.6 1.9-5.6 1.9L12 17.5l-1.9-5.6L4.5 10l5.6-1.9z" fill="currentColor"/><path d="M18.5 14.5l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8z" fill="currentColor"/></svg></div><div><div class="ttl">Setup Copilot</div><div class="st">Resubmitted · 11:58</div></div><button class="x" aria-label="Close">×</button></div>
+            <div class="snapshot"><span class="pill ok">WhatsApp connected</span><span class="pill ok">Quality: High</span><span class="pill info">2 templates in review</span></div>
+            <div class="chat">
+              <div class="msg user"><div class="who">Priya</div>Submit both</div>
+              <div class="msg ai"><div class="who">Copilot</div><p>Done. Both templates are with Meta for review. I archived the rejected one so it doesn't get used by mistake.</p><p>Your Diwali campaign now uses <strong>diwali_offer</strong>. I'll message you on WhatsApp the moment it's approved, and I'll check your next templates before you submit them.</p></div>
+              <div class="msg ai"><div class="who">Copilot</div><p>Did this solve what you came for?</p><div class="acts"><button class="btn primary sm" data-go="4">Yes, solved</button><button class="btn sm" data-go="4">Not yet</button></div><p class="sub" style="margin-top:8px">Your answer is how we measure the copilot. “Solved” plus no ticket on this in 48 hours counts as resolved.</p></div>
+            </div>
+            <div class="compose"><input id="c3" type="text" placeholder="Ask anything…" aria-label="Message"><button class="btn sm">Send</button></div>
+            <div class="meta"><span>Actions taken: 2 submitted, 1 archived</span><span>Undo available for 24h</span></div>
+          </aside>
+        </div>
+      </div>
+    </div>
+
+    <!-- 4 Rejected again (escalation) -->
+    <div class="screen" data-screen="4">
+      <div class="frame">
+        <div class="topnav"><span class="brand">cheerio</span><span class="links"><span>Inbox</span><span>Campaigns</span><span aria-current="true">Templates</span><span>Workflows</span><span>Contacts</span><span>Integrations</span></span><span class="me"><span class="plan">Growth</span>Priya · Glow Botanicals</span></div>
+        <div class="body">
+          <div class="main">
+            <div><h2>WhatsApp templates</h2><p class="sub">Next morning, 09:10.</p></div>
+            <div class="tblwrap"><table class="tbl">
+              <thead><tr><th>Name</th><th>Category</th><th>Status</th><th>Updated</th></tr></thead>
+              <tbody>
+                <tr><td class="name">order_on_the_way</td><td>Utility</td><td><span class="pill ok">Approved</span></td><td>Yesterday, 12:14</td></tr>
+                <tr class="hot"><td class="name">diwali_offer</td><td>Marketing</td><td><span class="pill bad">Rejected</span></td><td>Today, 08:52</td></tr>
+              </tbody>
+            </table></div>
+            <div class="card bad"><h3>Why the copilot stops here</h3><p>Same template, second rejection, and the reason is a policy judgement (Meta flagged the discount code as a possible scam). Appeals go through Meta Business Support, which only a Cheerio team member can file. The rule is deterministic: a repeat failure after a fix, or any Meta-side appeal, goes to a human.</p></div>
+          </div>
+          <aside class="drawer">
+            <div class="dhead"><div class="ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5l1.9 5.6 5.6 1.9-5.6 1.9L12 17.5l-1.9-5.6L4.5 10l5.6-1.9z" fill="currentColor"/><path d="M18.5 14.5l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8z" fill="currentColor"/></svg></div><div><div class="ttl">Setup Copilot</div><div class="st">Escalating · 09:10</div></div><button class="x" aria-label="Close">×</button></div>
+            <div class="snapshot"><span class="pill ok">WhatsApp connected</span><span class="pill ok">Quality: High</span><span class="pill bad">diwali_offer rejected ×2</span></div>
+            <div class="chat">
+              <div class="msg ai"><div class="who">Copilot</div><p><strong>diwali_offer</strong> was rejected a second time. This time the reason is <code>132007 · SCAM</code>: Meta's reviewer thinks the discount code looks like a scam. That is usually a false positive for coupon codes, but it can't be fixed by rewording from here. It needs an appeal to Meta, which our support team files for you.</p><p>I've prepared the ticket with everything they need, so you won't have to explain it again.</p>
+                <div class="ticket"><div class="th"><span>Ticket draft · Priority: High (campaign in 1 day)</span><span>ETA 2 working hours</span></div>
+                  <dl><dt>Issue</dt><dd>Marketing template rejected twice; second reason SCAM (132007)</dd><dt>Account</dt><dd>WABA 1049…2231 · Quality High · Tier 10k/day</dd><dt>Attempts</dt><dd>v1 Utility (category mismatch, fixed) → v2 Marketing (SCAM flag)</dd><dt>Attached</dt><dd>Both template bodies, Meta responses, this conversation</dd><dt>Ask</dt><dd>File appeal via Meta Business Support; suggest wording if needed</dd></dl>
+                </div>
+                <div class="acts"><button class="btn primary sm" data-go="8">Send to support</button><button class="btn sm">Edit ticket</button></div>
+                <p style="margin-top:8px">Meanwhile, your approved <strong>order_on_the_way</strong> template is live, so shipping updates are not blocked.</p>
+              </div>
+              <div class="msg sys">Handoff reason: repeat failure after fix · Meta appeal required</div>
+            </div>
+            <div class="compose"><input id="c4" type="text" placeholder="Add a note for the support team…" aria-label="Message"><button class="btn sm">Send</button></div>
+            <div class="meta"><span>Support hours: Mon–Sat 9:00–19:00 IST</span><span>Your Growth plan includes WhatsApp support</span></div>
+          </aside>
+        </div>
+      </div>
+    </div>
+
+    <!-- 5 User asks for a human -->
+    <div class="screen" data-screen="5">
+      <div class="frame">
+        <div class="topnav"><span class="brand">cheerio</span><span class="links"><span>Inbox</span><span>Campaigns</span><span aria-current="true">Templates</span><span>Workflows</span><span>Contacts</span><span>Integrations</span></span><span class="me"><span class="plan">Growth</span>Priya · Glow Botanicals</span></div>
+        <div class="body">
+          <div class="main">
+            <div><h2>diwali_offer_utility</h2><p class="sub">Utility · English · <span class="pill bad">Rejected</span></p></div>
+            <div class="card warn"><h3>Edge case: the user is frustrated or simply wants a person</h3><p>Two triggers hand off immediately, no questions asked: the user asks for a human in any wording, or the sentiment classifier scores the message as angry. The copilot never argues, never asks “are you sure”, and the human inherits the full conversation.</p></div>
+            <div class="card"><h3>What the human sees</h3><p class="sub">The same diagnosis, account snapshot and transcript shown on screen 8, plus a “frustrated” flag so they open with empathy, not a checklist.</p></div>
+          </div>
+          <aside class="drawer">
+            <div class="dhead"><div class="ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5l1.9 5.6 5.6 1.9-5.6 1.9L12 17.5l-1.9-5.6L4.5 10l5.6-1.9z" fill="currentColor"/><path d="M18.5 14.5l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8z" fill="currentColor"/></svg></div><div><div class="ttl">Setup Copilot</div><div class="st">Connecting you to a person</div></div><button class="x" aria-label="Close">×</button></div>
+            <div class="snapshot"><span class="pill ok">WhatsApp connected</span><span class="pill bad">1 template rejected</span></div>
+            <div class="chat">
+              <div class="msg ai"><div class="who">Copilot</div><p>Meta rejected <strong>diwali_offer_utility</strong> for three reasons…</p></div>
+              <div class="msg user"><div class="who">Priya</div>I don't have time for this, my campaign is in 2 days. Just get me a person.</div>
+              <div class="msg ai"><div class="who">Copilot</div><p>Understood. I've passed this to <strong>Rahul from Cheerio support</strong> with everything we've covered, so you won't repeat yourself. He'll reply here within 15 minutes, and on WhatsApp if you leave this page.</p><p>While you wait, the rewritten template on the left is ready. If you'd rather I submit it now, say “submit” and Rahul will still follow up.</p></div>
+              <div class="msg sys">Handoff reason: user requested a human · sentiment: frustrated · priority raised</div>
+              <div class="msg ai"><div class="who">Rahul · Cheerio support</div><p>Hi Priya, Rahul here. I can see the Diwali template and what went wrong. I'll get it submitted and watch the review myself. Two quick questions…</p></div>
+            </div>
+            <div class="compose"><input id="c5" type="text" placeholder="Message Rahul…" aria-label="Message"><button class="btn sm">Send</button></div>
+            <div class="meta"><span>You're talking to a person now</span><span>Copilot stays available</span></div>
+          </aside>
+        </div>
+      </div>
+    </div>
+
+    <!-- 6 Meta data unavailable -->
+    <div class="screen" data-screen="6">
+      <div class="frame">
+        <div class="topnav"><span class="brand">cheerio</span><span class="links"><span>Inbox</span><span>Campaigns</span><span aria-current="true">Templates</span><span>Workflows</span><span>Contacts</span><span>Integrations</span></span><span class="me"><span class="plan">Growth</span>Priya · Glow Botanicals</span></div>
+        <div class="body">
+          <div class="main">
+            <div><h2>WhatsApp templates</h2><p class="sub">Status column shows “—” because Meta's API has not responded for 6 minutes.</p></div>
+            <div class="card warn"><h3>Edge case: the copilot can't see the account</h3><p>The copilot's advantage is that it reads live account state. When it can't, it must say so plainly, never guess, and give the user a path that doesn't depend on it. It also must not blame the user's setup for what is a Meta outage.</p></div>
+            <div class="card"><h3>What is still allowed</h3><ul class="steps-list"><li>Answer from the help library (no account data needed).</li><li>Offer a manual checklist.</li><li>Retry automatically and notify.</li><li>Hand off to a human if the campaign is time-critical.</li></ul></div>
+          </div>
+          <aside class="drawer">
+            <div class="dhead"><div class="ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5l1.9 5.6 5.6 1.9-5.6 1.9L12 17.5l-1.9-5.6L4.5 10l5.6-1.9z" fill="currentColor"/><path d="M18.5 14.5l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8z" fill="currentColor"/></svg></div><div><div class="ttl">Setup Copilot</div><div class="st">Limited: Meta not responding</div></div><button class="x" aria-label="Close">×</button></div>
+            <div class="snapshot"><span class="pill warn">Can't read WhatsApp account right now</span><span class="pill ok">Help library available</span></div>
+            <div class="chat">
+              <div class="msg user"><div class="who">Priya</div>Why does my template say rejected?</div>
+              <div class="msg ai"><div class="who">Copilot</div><p>I can't read your WhatsApp account at the moment: Meta's API hasn't answered for 6 minutes. This is on Meta's side, not your setup, and other Cheerio customers are seeing the same.</p><p>Until it's back I can't tell you Meta's exact rejection reason. Three things you can check yourself while you wait, in order of how often they cause rejections:</p><ol><li>Any offer, discount or “buy now” wording in a Utility template.</li><li>A template that starts or ends with a variable like <code>{{1}}</code>.</li><li>Shortened links (bit.ly) instead of your own domain.</li></ol><p>I'll retry every 2 minutes and message you here the moment I can see the real reason.</p><div class="acts"><button class="btn sm">Check again now</button><button class="btn sm" data-go="5">Talk to a human</button></div></div>
+              <div class="msg sys">Meta Graph API: timeout × 3 · auto-retry scheduled · no account changes possible</div>
+            </div>
+            <div class="compose"><input id="c6" type="text" placeholder="Ask anything…" aria-label="Message"><button class="btn sm">Send</button></div>
+            <div class="meta"><span>Mode: help library only</span><span>Fix actions disabled until Meta responds</span></div>
+          </aside>
+        </div>
+      </div>
+    </div>
+
+    <!-- 7 Startup cap -->
+    <div class="screen" data-screen="7">
+      <div class="frame">
+        <div class="topnav"><span class="brand">cheerio</span><span class="links"><span>Inbox</span><span>Campaigns</span><span aria-current="true">Templates</span><span>Workflows</span><span>Contacts</span><span>Integrations</span></span><span class="me"><span class="plan">Startup</span>Arjun · Nakshatra Tours</span></div>
+        <div class="body">
+          <div class="main">
+            <div><h2>WhatsApp templates</h2><p class="sub">A different user, on the Startup plan, in a heavy onboarding month.</p></div>
+            <div class="card warn"><h3>Edge case: fair-use cap on the Startup plan</h3><p>Startup includes 30 copilot sessions a month, enough for a normal onboarding month. Growth and Pro are unlimited. The cap exists so the free tier can't be abused by agencies running many numbers; it is not a paywall between a stuck user and a fix, so urgent problems still get a path.</p></div>
+            <div class="card"><h3>Why ₹499</h3><p class="sub">Priced like Cheerio's existing ₹500 seat add-on so it reads as familiar. A heavy user costs about ₹19 a month in tokens at 80 sessions, so margin stays above 95%.</p></div>
+          </div>
+          <aside class="drawer">
+            <div class="dhead"><div class="ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5l1.9 5.6 5.6 1.9-5.6 1.9L12 17.5l-1.9-5.6L4.5 10l5.6-1.9z" fill="currentColor"/><path d="M18.5 14.5l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8z" fill="currentColor"/></svg></div><div><div class="ttl">Setup Copilot</div><div class="st">Startup plan · 30 of 30 sessions used</div></div><button class="x" aria-label="Close">×</button></div>
+            <div class="snapshot"><span class="pill ok">WhatsApp connected</span><span class="pill warn">Display name pending</span><span class="pill info">Startup plan</span></div>
+            <div class="chat">
+              <div class="msg user"><div class="who">Arjun</div>My number says connected but messages aren't going out</div>
+              <div class="msg ai"><div class="who">Copilot</div><p>You've used all 30 copilot sessions included in Startup this month. It resets on 1 Nov.</p><p>Short answer to your question, because it's urgent: your <strong>display name is still pending with Meta</strong>, and WhatsApp won't deliver messages until it's approved. Nothing is broken on your side.</p><p>To keep going with step-by-step fixes this month:</p><div class="acts"><button class="btn primary sm">Add Copilot Unlimited · ₹499/month</button><button class="btn sm">Email support instead</button></div><p class="sub" style="margin-top:8px">Startup includes email support and 2 calls a month. Upgrading to Growth includes unlimited copilot and WhatsApp support.</p></div>
+              <div class="msg sys">Cap reached · urgent one-line answer still given · no fix actions until add-on or reset</div>
+            </div>
+            <div class="compose"><input id="c7" type="text" placeholder="Ask anything…" aria-label="Message" disabled><button class="btn sm" disabled>Send</button></div>
+            <div class="meta"><span>Resets 1 Nov</span><span>Usage visible in Settings → Billing</span></div>
+          </aside>
+        </div>
+      </div>
+    </div>
+
+    <!-- 8 Agent view -->
+    <div class="screen" data-screen="8">
+      <div class="frame">
+        <div class="topnav"><span class="brand">cheerio</span><span class="links"><span aria-current="true">Support inbox</span><span>Macros</span><span>Copilot QA</span><span>Reports</span></span><span class="me"><span class="plan">Internal</span>Rahul · Support</span></div>
+        <div class="inbox">
+          <div class="qlist">
+            <div class="q sel"><div class="qn"><span>#4821 Glow Botanicals</span><span class="pill bad" style="font-size:10px">High</span></div><div class="qs">Template rejected ×2 · Meta appeal · from copilot</div></div>
+            <div class="q"><div class="qn"><span>#4820 Nakshatra Tours</span><span class="pill warn" style="font-size:10px">Med</span></div><div class="qs">Display name pending 5 days · from copilot</div></div>
+            <div class="q"><div class="qn"><span>#4819 Mehta Dental</span><span class="pill neutral" style="font-size:10px">Low</span></div><div class="qs">Refund request · billing · direct</div></div>
+            <div class="q"><div class="qn"><span>#4818 Urban Tiffin</span><span class="pill warn" style="font-size:10px">Med</span></div><div class="qs">Workflow won't save · suspected bug · from copilot</div></div>
+          </div>
+          <div class="tview">
+            <div><h2>#4821 · Marketing template rejected twice, Meta appeal needed</h2><p class="sub">Priya Menon · Glow Botanicals · Growth plan · opened by copilot 09:10 · SLA 2h</p></div>
+            <div class="ai-attach"><div class="ah"><span class="pill info" style="font-size:10px">Copilot diagnosis</span>Everything the agent would normally spend the first 20 minutes collecting</div>
+              <div class="ab">
+                <div class="grid2">
+                  <div><strong>Account</strong><br>WABA 1049…2231 · Quality High · Tier 10k/day · Display name approved · No restrictions</div>
+                  <div><strong>History</strong><br>v1 <span class="name">diwali_offer_utility</span>: category mismatch + variable at start + bit.ly (fixed by copilot) → v2 <span class="name">diwali_offer</span>: 132007 SCAM</div>
+                  <div><strong>Already told the user</strong><br>Why it was rejected, that an appeal is needed, ETA 2h, shipping template is live</div>
+                  <div><strong>Suggested action</strong><br>File appeal in Meta Business Support citing legitimate coupon; if refused, resubmit without the code word “code” (known false-positive pattern)</div>
+                </div>
+                <div class="acts"><button class="btn sm">Open transcript (6 messages)</button><button class="btn sm">Open template bodies</button><button class="btn sm">Flag copilot answer as wrong</button></div>
+              </div>
+            </div>
+            <div class="reply"><div class="rh">Suggested reply · edit before sending</div>Hi Priya, Rahul from Cheerio. I've filed an appeal with Meta for diwali_offer; they usually respond within a working day. If they hold the decision, I'll resubmit a reworded version myself so your campaign goes out on time. Your shipping template is already approved and live.</div>
+            <div class="acts"><button class="btn primary sm">Send reply</button><button class="btn sm">File Meta appeal</button><button class="btn ghost sm" data-go="1">Restart prototype</button></div>
+            <p class="sub">“Flag copilot answer as wrong” feeds the weekly QA sample and the false-resolution audit check.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="about">
+      <div><h3>What this prototype covers</h3><ul><li>One real scenario end to end: rejected template → diagnosis → fix → resubmit → outcome.</li><li>Four edge cases: repeat failure with escalation, user demands a human, Meta data unavailable, plan cap reached.</li><li>The support agent's side of a handoff.</li></ul></div>
+      <div><h3>Design rules shown</h3><ul><li>Copilot reads live account state and shows it as chips before saying anything.</li><li>Every fix needs a confirm click; actions are listed and undoable.</li><li>Money is shown whenever a fix changes the Meta message rate.</li><li>“Did this solve it?” is asked once; it feeds the North Star.</li></ul></div>
+      <div><h3>Not in scope</h3><ul class="muted"><li>Meta business verification and bans (human only).</li><li>Billing disputes and refunds.</li><li>Custom integration development.</li><li>Chatbot flow and webhook screens (month 3 of rollout).</li></ul></div>
+    </div>
+  </section>
+</div>
+
+<script>
+(function(){
+  var screens=[].slice.call(document.querySelectorAll('.screen'));
+  var stepBtns=[].slice.call(document.querySelectorAll('#steps button'));
+  var where=document.getElementById('where');
+  var cur=1, N=screens.length;
+  function go(n){
+    n=Math.max(1,Math.min(N,n)); cur=n;
+    screens.forEach(function(s){ s.classList.toggle('active', +s.getAttribute('data-screen')===n); });
+    stepBtns.forEach(function(b){ if(+b.getAttribute('data-go')===n){ b.setAttribute('aria-current','true'); } else { b.removeAttribute('aria-current'); } });
+    where.textContent='Screen '+n+' of '+N;
+    document.getElementById('prev').disabled=(n===1);
+    document.getElementById('next').disabled=(n===N);
+    try{ localStorage.setItem('copilot-proto-screen', String(n)); }catch(e){}
+    var stage=document.querySelector('.stage'); if(stage && window.innerWidth<860){ stage.scrollIntoView({block:'start'}); }
+  }
+  document.addEventListener('click',function(e){
+    var b=e.target.closest('[data-go]'); if(b){ go(+b.getAttribute('data-go')); }
+  });
+  document.getElementById('prev').addEventListener('click',function(){ go(cur-1); });
+  document.getElementById('next').addEventListener('click',function(){ go(cur+1); });
+  document.addEventListener('keydown',function(e){
+    if(e.target && (e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA')) return;
+    if(e.key==='ArrowRight') go(cur+1); if(e.key==='ArrowLeft') go(cur-1);
+  });
+  var start=1;
+  var h=(location.hash||'').replace('#','');
+  if(/^s[1-8]$/.test(h)) start=+h.slice(1);
+  go(start);
+})();
+</script>
